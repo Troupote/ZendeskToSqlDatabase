@@ -13,8 +13,8 @@
 
     Pour plus d'informations sur la bibliothèque System.Data.SqlClient, consultez la documentation officielle : https://docs.microsoft.com/en-us/dotnet/api/system.data.sqlclient?view=net-5.0
 
-    Auteur : Votre nom
-    Date : Date de création du fichier
+    Auteur : Thybault Jallu
+    Date : 27/02/2024
 */
 
 using System.Data.SqlClient;
