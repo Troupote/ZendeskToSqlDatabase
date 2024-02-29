@@ -18,6 +18,8 @@
 */
 
 using System.Data.SqlClient;
+using System.Diagnostics.CodeAnalysis;
+using System.Security.Cryptography.X509Certificates;
 using ZendeskApi_v2;
 
 // Définition des chemins des fichiers de configuration
@@ -34,22 +36,149 @@ string DatabaseNamePath = Path.Combine(configFolderPath, "BaseName.txt");
 
 // Créer le dossier de configuration s'il n'existe pas déjà
 Directory.CreateDirectory(configFolderPath);
-
-string zendeskSite, userEmail, userToken, SqlLogin, SqlAdress, SqlPsw, SqlDatabase;
-
 #pragma warning disable CS8600 // Conversion de littéral ayant une valeur null ou d'une éventuelle valeur null en type non-nullable.
 
-// Lire les informations de configuration des fichiers s'ils existent, sinon demander à l'utilisateur de les fournir
-if (File.Exists(zendeskSiteFilePath))
+string zendeskSite = string.Empty;
+string userEmail = string.Empty;
+string userToken = string.Empty;
+string SqlLogin = string.Empty;
+string SqlAdress = string.Empty;
+string SqlPsw = string.Empty;
+string SqlDatabase = string.Empty;
+string? reponse;
+do
 {
-    zendeskSite = File.ReadAllText(zendeskSiteFilePath);
+    Console.WriteLine("Voulez-vous vous connecter au dernier serveur et au dernier zendesk ? (o/n)");
+    reponse = Console.ReadLine();
+
+} while (reponse != "o" && reponse != "n");
+
+if (reponse == "o")
+{
+    
+    // Lire les informations de configuration des fichiers s'ils existent, sinon demander à l'utilisateur de les fournir
+    if (!File.Exists(zendeskSiteFilePath))
+    {
+        Console.Write("Veuillez entrer l'URL de votre site Zendesk : ");
+
+        string inputUrl = Console.ReadLine();
+
+        while (string.IsNullOrEmpty(inputUrl))
+        {
+            Console.WriteLine("L'URL ne peut pas être vide. Veuillez entrer une URL valide : ");
+            inputUrl = Console.ReadLine();
+        }
+        zendeskSite = inputUrl;
+        File.WriteAllText(zendeskSiteFilePath, zendeskSite);
+    }
+    else
+    {
+        zendeskSite = File.ReadAllText(zendeskSiteFilePath);
+    }
+
+    if (!File.Exists(userEmailFilePath))
+    {
+        Console.Write("Veuillez entrer votre email : ");
+        string inputEmail = Console.ReadLine();
+        while (string.IsNullOrEmpty(inputEmail))
+        {
+            Console.WriteLine("L'email ne peut pas être vide. Veuillez entrer une adresse email valide : ");
+            inputEmail = Console.ReadLine();
+        }
+        userEmail = inputEmail;
+        File.WriteAllText(userEmailFilePath, userEmail);
+    }
+    else
+    {
+        userEmail = File.ReadAllText(userEmailFilePath);
+    }
+
+    if (!File.Exists(userTokenFilePath))
+    {
+        Console.Write("Veuillez entrer votre token : ");
+        string inputToken = Console.ReadLine();
+        while (string.IsNullOrEmpty(inputToken))
+        {
+            Console.WriteLine("Le token ne peut pas être vide. Veuillez entrer un token valide : ");
+            inputToken = Console.ReadLine();
+        }
+        userToken = inputToken;
+        File.WriteAllText(userTokenFilePath, userToken);
+    }
+    else
+    {
+        userToken = File.ReadAllText(userTokenFilePath);
+    }
+    
+    if (!File.Exists(SqlserverLogin))
+    {
+        Console.Write("Veuillez entrer le login du server sql : ");
+        string inputLogin = Console.ReadLine();
+        while (string.IsNullOrEmpty(inputLogin))
+        {
+            Console.WriteLine("Le login ne peut pas être vide. Veuillez entrer un login valide : ");
+            inputLogin = Console.ReadLine();
+        }
+        SqlLogin = inputLogin;
+        File.WriteAllText(SqlserverLogin,inputLogin);
+    }
+    else
+    {
+        SqlLogin = File.ReadAllText(SqlserverLogin);
+    }
+    
+    if (!File.Exists(SqlserverPsw))
+    {
+        Console.Write("Veuillez entrer le mot de passe du server sql : ");
+        SqlPsw = Console.ReadLine();
+        
+    }
+    else
+    {
+        SqlPsw = File.ReadAllText(SqlserverPsw);
+    }
+    
+    if (!File.Exists(SqlserverAdress))
+    {
+        Console.Write("Veuillez entrer l'adresse du server sql : ");
+        string inputAdress = Console.ReadLine();
+        while (string.IsNullOrEmpty(inputAdress))
+        {
+            Console.WriteLine("L'adresse ne peut pas être vide. Veuillez entrer une adresse valide : ");
+            inputAdress = Console.ReadLine();
+        }
+        SqlAdress = inputAdress;
+        File.WriteAllText(SqlserverAdress, inputAdress);
+    }
+    else
+    {
+        SqlAdress = File.ReadAllText(SqlserverAdress);
+    }
+    
+    if (!File.Exists(DatabaseNamePath))
+    {
+        Console.Write("Veuillez entrer le nom de la base de donnée dans le server sql : ");
+        string inputDatabase = Console.ReadLine();
+        while (string.IsNullOrEmpty(inputDatabase))
+        {
+            Console.WriteLine("Le nom de la base de donnée ne peut pas être vide. Veuillez entrer un nom de base de donnée valide : ");
+            inputDatabase = Console.ReadLine();
+        }
+        SqlDatabase = inputDatabase;
+        File.WriteAllText(DatabaseNamePath, inputDatabase);
+    }
+    else
+    {
+        SqlDatabase = File.ReadAllText(DatabaseNamePath);
+    }
+    
 }
-else
+else if (reponse == "n")
 {
+    
+    // Lire les informations de configuration des fichiers s'ils existent, sinon demander à l'utilisateur de les fournir
     Console.Write("Veuillez entrer l'URL de votre site Zendesk : ");
-
     string inputUrl = Console.ReadLine();
-
     while (string.IsNullOrEmpty(inputUrl))
     {
         Console.WriteLine("L'URL ne peut pas être vide. Veuillez entrer une URL valide : ");
@@ -57,14 +186,8 @@ else
     }
     zendeskSite = inputUrl;
     File.WriteAllText(zendeskSiteFilePath, zendeskSite);
-}
 
-if (File.Exists(userEmailFilePath))
-{
-    userEmail = File.ReadAllText(userEmailFilePath);
-}
-else
-{
+
     Console.Write("Veuillez entrer votre email : ");
     string inputEmail = Console.ReadLine();
     while (string.IsNullOrEmpty(inputEmail))
@@ -74,14 +197,8 @@ else
     }
     userEmail = inputEmail;
     File.WriteAllText(userEmailFilePath, userEmail);
-}
 
-if (File.Exists(userTokenFilePath))
-{
-    userToken = File.ReadAllText(userTokenFilePath);
-}
-else
-{
+
     Console.Write("Veuillez entrer votre token : ");
     string inputToken = Console.ReadLine();
     while (string.IsNullOrEmpty(inputToken))
@@ -91,82 +208,53 @@ else
     }
     userToken = inputToken;
     File.WriteAllText(userTokenFilePath, userToken);
-}
 
-if (!File.Exists(SqlserverLogin))
-{
+
     Console.Write("Veuillez entrer le login du server sql : ");
     string inputLogin = Console.ReadLine();
     while (string.IsNullOrEmpty(inputLogin))
     {
-        Console.WriteLine("L'URL ne peut pas être vide. Veuillez entrer une URL valide : ");
+        Console.WriteLine("Le login ne peut pas être vide. Veuillez entrer un login valide : ");
         inputLogin = Console.ReadLine();
     }
     SqlLogin = inputLogin;
     File.WriteAllText(SqlserverLogin,inputLogin);
-}
-else
-{
-    SqlLogin = File.ReadAllText(SqlserverLogin);
-}
 
-if (!File.Exists(SqlserverPsw))
-{
+    
     Console.Write("Veuillez entrer le mot de passe du server sql : ");
-    string inputPsw = Console.ReadLine();
-    while (string.IsNullOrEmpty(inputPsw))
-    {
-        Console.WriteLine("L'email ne peut pas être vide. Veuillez entrer une adresse email valide : ");
-        inputPsw = Console.ReadLine();
-    }
-    SqlPsw = inputPsw;
-    File.WriteAllText(SqlserverPsw, inputPsw);
-}
-else
-{
-    SqlPsw = File.ReadAllText(SqlserverPsw);
-}
+    SqlPsw = Console.ReadLine();
 
-if (!File.Exists(SqlserverAdress))
-{
+    
     Console.Write("Veuillez entrer l'adresse du server sql : ");
     string inputAdress = Console.ReadLine();
     while (string.IsNullOrEmpty(inputAdress))
     {
-        Console.WriteLine("L'email ne peut pas être vide. Veuillez entrer une adresse email valide : ");
+        Console.WriteLine("L'adresse ne peut pas être vide. Veuillez entrer une adresse valide : ");
         inputAdress = Console.ReadLine();
     }
     SqlAdress = inputAdress;
     File.WriteAllText(SqlserverAdress, inputAdress);
-}
-else
-{
-    SqlAdress = File.ReadAllText(SqlserverAdress);
-}
 
-if (!File.Exists(DatabaseNamePath))
-{
+    
     Console.Write("Veuillez entrer le nom de la base de donnée dans le server sql : ");
     string inputDatabase = Console.ReadLine();
     while (string.IsNullOrEmpty(inputDatabase))
     {
-        Console.WriteLine("L'email ne peut pas être vide. Veuillez entrer une adresse email valide : ");
+        Console.WriteLine("Le nom de la base de donnée ne peut pas être vide. Veuillez entrer un nom de base de donnée valide : ");
         inputDatabase = Console.ReadLine();
     }
     SqlDatabase = inputDatabase;
     File.WriteAllText(DatabaseNamePath, inputDatabase);
+
 }
-else
-{
-    SqlDatabase = File.ReadAllText(DatabaseNamePath);
-}
+
 #pragma warning restore CS8600 // Conversion de littéral ayant une valeur null ou d'une éventuelle valeur null en type non-nullable.
 
 // Création de l'objet ZendeskApi pour se connecter à l'API Zendesk
 var api = new ZendeskApi(zendeskSite, userEmail, userToken, "true");
 
 // Chaîne de connexion à la base de données SQL
-string connectionString = $"Server={SqlAdress};Database={SqlDatabase};User Id={SqlLogin};Password={SqlPsw};";;
+string connectionString = $"Server={SqlAdress};Database={SqlDatabase};User Id={SqlLogin};Password={SqlPsw};";
 
 // Connexion à la base de données SQL
 using (SqlConnection connection = new SqlConnection(connectionString))
