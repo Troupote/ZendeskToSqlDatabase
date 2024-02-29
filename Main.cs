@@ -18,7 +18,6 @@
 */
 
 using System.Data.SqlClient;
-using System.Security.Cryptography.X509Certificates;
 using ZendeskApi_v2;
 
 // Définition des chemins des fichiers de configuration
