@@ -267,7 +267,7 @@ using (SqlConnection connection = new SqlConnection(connectionString))
     DROP TABLE Tickets;
 
     CREATE TABLE Tickets (
-    Id INT PRIMARY KEY, 
+    Id BIGINT PRIMARY KEY, 
     Priority NVARCHAR(50), 
     Type NVARCHAR(50), 
     Subject NVARCHAR(100), 
@@ -275,7 +275,8 @@ using (SqlConnection connection = new SqlConnection(connectionString))
     Requester_Id BIGINT, 
     Assigned_Id BIGINT, 
     Created_at NVARCHAR(50), 
-    Url NVARCHAR(100)
+    Url NVARCHAR(100),
+    Markers NVARCHAR(100)
     
     );";
     using (SqlCommand command = new SqlCommand(sqlStatement, connection))
@@ -294,7 +295,49 @@ using (SqlConnection connection = new SqlConnection(connectionString))
         Email NVARCHAR(100),
         Role NVARCHAR(50)
     );";
+    
+    // Création de la table Markers si elle n'existe pas déjà
+    string createMarkerTableSql = @"
+    IF OBJECT_ID('Markers', 'U') IS NOT NULL 
+    DROP TABLE Markers;
 
+    CREATE TABLE Markers (
+        Id BIGINT PRIMARY KEY,
+        Name NVARCHAR(100),
+    );";
+
+    using (SqlCommand createMarkerTableCommand = new SqlCommand(createMarkerTableSql, connection))
+    {
+        createMarkerTableCommand.ExecuteNonQuery();
+    }
+    
+    
+    // Récupération des tickets Zendesk et insertion des tags uniques dans la table Markers
+    var tag1 = api.Tickets.GetAllTickets();
+    foreach (var ticket in tag1.Tickets)
+    {
+        foreach (var tag in ticket.Tags)
+        {
+            string countSql = "SELECT COUNT(*) FROM Markers";
+            SqlCommand countCommand = new SqlCommand(countSql, connection);
+            int i = (int)countCommand.ExecuteScalar() + 1;
+
+            string insertMarkerSql = @"
+            IF NOT EXISTS (SELECT 1 FROM Markers WHERE Name = @Name)
+            BEGIN
+                INSERT INTO Markers (Id, Name) VALUES (@Id, @Name);
+            END";
+
+        using (SqlCommand insertMarkerCommand = new SqlCommand(insertMarkerSql, connection))
+        {
+            insertMarkerCommand.Parameters.AddWithValue("@Id", i);
+            insertMarkerCommand.Parameters.AddWithValue("@Name", tag);
+            insertMarkerCommand.ExecuteNonQuery();
+        }
+            
+        }
+    }
+    
     using (SqlCommand createUserTableCommand = new SqlCommand(createUserTableSql, connection))
     {
         createUserTableCommand.ExecuteNonQuery();
@@ -321,7 +364,7 @@ using (SqlConnection connection = new SqlConnection(connectionString))
     var tickets = api.Tickets.GetAllTickets();
     foreach (var item in tickets.Tickets)
     {
-        sqlStatement = "INSERT INTO Tickets (Id, Priority, Type, Subject, Status, Requester_Id, Assigned_Id, Created_at, Url) VALUES (@Id, @Priority, @Type, @Subject, @Status, @Requester, @Assigned, @Created_at, @Url)";
+        sqlStatement = "INSERT INTO Tickets (Id, Priority, Type, Subject, Status, Requester_Id, Assigned_Id, Created_at, Url, Markers) VALUES (@Id, @Priority, @Type, @Subject, @Status, @Requester, @Assigned, @Created_at, @Url, @Markers)";
 
         using (SqlCommand command = new SqlCommand(sqlStatement, connection))
         {
@@ -335,9 +378,14 @@ using (SqlConnection connection = new SqlConnection(connectionString))
             command.Parameters.AddWithValue("@Type", string.IsNullOrEmpty(item.Type) ? (object)DBNull.Value : item.Type);
             command.Parameters.AddWithValue("@Url", item.Url);
 
+            // Convertir la liste de tags en une chaîne séparée par des virgules
+            string markers = string.Join(" , ", item.Tags);
+            command.Parameters.AddWithValue("@Markers", markers);
+
             command.ExecuteNonQuery();
         }
-    }
+    } 
+    
 }
 // Affichage des tickets actuels si l'utilisateur le souhaite
 Console.WriteLine("[1] Voulez-vous afficher les tickets actuels\n[Autre touche] Quitter");
