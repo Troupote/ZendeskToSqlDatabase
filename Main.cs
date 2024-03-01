@@ -50,7 +50,9 @@ void CheckInternetConnection()
     try
     {
         using (var client = new HttpClient())
-        using (client.GetAsync("http://google.com/generate_204").Result)
+        {
+            client.GetAsync("http://google.com/generate_204");
+        }
     }
     catch
     {
