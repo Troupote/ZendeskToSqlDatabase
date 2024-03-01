@@ -260,132 +260,162 @@ string connectionString = $"Server={SqlAdress};Database={SqlDatabase};User Id={S
 using (SqlConnection connection = new SqlConnection(connectionString))
 {
     connection.Open();
+    // Suppression des tables si elles existent déjà
+    string dropTablesSql = @"
+    IF OBJECT_ID('TicketTags', 'U') IS NOT NULL DROP TABLE TicketTags;
+    IF OBJECT_ID('Users', 'U') IS NOT NULL DROP TABLE Users;
+    IF OBJECT_ID('Tags', 'U') IS NOT NULL DROP TABLE Tags;
+    IF OBJECT_ID('Tickets', 'U') IS NOT NULL DROP TABLE Tickets;
+    ";
 
-    // Création de la table Tickets si elle n'existe pas déjà
-    string sqlStatement = @"
-    IF OBJECT_ID('Tickets', 'U') IS NOT NULL 
-    DROP TABLE Tickets;
-
-    CREATE TABLE Tickets (
-    Id BIGINT PRIMARY KEY, 
-    Priority NVARCHAR(50), 
-    Type NVARCHAR(50), 
-    Subject NVARCHAR(100), 
-    Status NVARCHAR(50), 
-    Requester_Id BIGINT, 
-    Assigned_Id BIGINT, 
-    Created_at NVARCHAR(50), 
-    Url NVARCHAR(100),
-    Markers NVARCHAR(100)
-    
-    );";
-    using (SqlCommand command = new SqlCommand(sqlStatement, connection))
+    using (SqlCommand dropTablesCommand = new SqlCommand(dropTablesSql, connection))
     {
-        command.ExecuteNonQuery();
+        dropTablesCommand.ExecuteNonQuery();
     }
 
-    // Création de la table Users si elle n'existe pas déjà
-    string createUserTableSql = @"
-    IF OBJECT_ID('Users', 'U') IS NOT NULL 
-    DROP TABLE Users;
+    // Création de la table Tickets
+    string createTicketsTableSql = @"
+    CREATE TABLE Tickets (
+        Id BIGINT PRIMARY KEY,
+        Subject NVARCHAR(255),
+        Status NVARCHAR(50),
+        Priority NVARCHAR(50),
+        Requester BIGINT,
+        Assigned BIGINT,
+        Type NVARCHAR(50),
+        Url NVARCHAR(255),
+        CreatedAt DATETIME,
+        Markers NVARCHAR(255)
+    );";
 
+    using (SqlCommand createTicketsTableCommand = new SqlCommand(createTicketsTableSql, connection))
+    {
+        createTicketsTableCommand.ExecuteNonQuery();
+    }
+
+    // Création de la table Tags
+    string createTagsTableSql = @"
+    CREATE TABLE Tags (
+        Id INT PRIMARY KEY IDENTITY,
+        Name NVARCHAR(50)
+    );";
+
+    using (SqlCommand createTagsTableCommand = new SqlCommand(createTagsTableSql, connection))
+    {
+        createTagsTableCommand.ExecuteNonQuery();
+    }
+
+    // Création de la table Users
+    string createUsersTableSql = @"
     CREATE TABLE Users (
         Id BIGINT PRIMARY KEY,
-        Name NVARCHAR(100),
-        Email NVARCHAR(100),
-        Role NVARCHAR(50)
-    );";
-    
-    // Création de la table Markers si elle n'existe pas déjà
-    string createMarkerTableSql = @"
-    IF OBJECT_ID('Markers', 'U') IS NOT NULL 
-    DROP TABLE Markers;
-
-    CREATE TABLE Markers (
-        Id BIGINT PRIMARY KEY,
-        Name NVARCHAR(100),
+        Name NVARCHAR(150),
+        Email NVARCHAR(255)
     );";
 
-    using (SqlCommand createMarkerTableCommand = new SqlCommand(createMarkerTableSql, connection))
+    using (SqlCommand createUsersTableCommand = new SqlCommand(createUsersTableSql, connection))
     {
-        createMarkerTableCommand.ExecuteNonQuery();
+        createUsersTableCommand.ExecuteNonQuery();
     }
-    
-    
-    // Récupération des tickets Zendesk et insertion des tags uniques dans la table Markers
-    var tag1 = api.Tickets.GetAllTickets();
-    foreach (var ticket in tag1.Tickets)
+
+    // Création de la table TicketTags
+    string createTicketTagsTableSql = @"
+    CREATE TABLE TicketTags (
+        TicketId BIGINT FOREIGN KEY REFERENCES Tickets(Id),
+        TagId INT FOREIGN KEY REFERENCES Tags(Id),
+        PRIMARY KEY (TicketId, TagId)
+    );";
+
+    using (SqlCommand createTicketTagsTableCommand = new SqlCommand(createTicketTagsTableSql, connection))
     {
-        foreach (var tag in ticket.Tags)
+        createTicketTagsTableCommand.ExecuteNonQuery();
+    }
+
+    // Récupération des tickets de l'API Zendesk
+    var tickets = api.Tickets.GetAllTickets();
+
+    // Insertion des tickets dans la table Tickets
+    foreach (var ticket in tickets.Tickets)
+    {
+        string insertTicketSql = @"
+        INSERT INTO Tickets (Id, Subject, Status, Priority, Requester, Assigned, Url, CreatedAt, Markers)
+        VALUES (@Id, @Subject, @Status, @Priority, @Requester, @Assigned, @Url, @CreatedAt, @Markers);";
+
+        using (SqlCommand insertTicketCommand = new SqlCommand(insertTicketSql, connection))
         {
-            string countSql = "SELECT COUNT(*) FROM Markers";
-            SqlCommand countCommand = new SqlCommand(countSql, connection);
-            int i = (int)countCommand.ExecuteScalar() + 1;
+            insertTicketCommand.Parameters.AddWithValue("@Id", ticket.Id);
+            insertTicketCommand.Parameters.AddWithValue("@Subject", ticket.Subject);
+            insertTicketCommand.Parameters.AddWithValue("@Status", ticket.Status);
+            insertTicketCommand.Parameters.AddWithValue("@Priority", ticket.Priority);
+            insertTicketCommand.Parameters.AddWithValue("@Requester", ticket.RequesterId);
+            insertTicketCommand.Parameters.AddWithValue("@Assigned", ticket.AssigneeId);
+            insertTicketCommand.Parameters.AddWithValue("@Url", ticket.Url);
+            insertTicketCommand.Parameters.AddWithValue("@CreatedAt", ticket.CreatedAt);
+            insertTicketCommand.Parameters.AddWithValue("@Markers", string.Join(",", ticket.Tags)); // Supposons que les tags sont stockés dans une liste de chaînes
 
-            string insertMarkerSql = @"
-            IF NOT EXISTS (SELECT 1 FROM Markers WHERE Name = @Name)
-            BEGIN
-                INSERT INTO Markers (Id, Name) VALUES (@Id, @Name);
-            END";
-
-        using (SqlCommand insertMarkerCommand = new SqlCommand(insertMarkerSql, connection))
-        {
-            insertMarkerCommand.Parameters.AddWithValue("@Id", i);
-            insertMarkerCommand.Parameters.AddWithValue("@Name", tag);
-            insertMarkerCommand.ExecuteNonQuery();
-        }
-            
+            insertTicketCommand.ExecuteNonQuery();
         }
     }
-    
-    using (SqlCommand createUserTableCommand = new SqlCommand(createUserTableSql, connection))
-    {
-        createUserTableCommand.ExecuteNonQuery();
-    }
 
-    // Récupération des utilisateurs Zendesk et insertion dans la table Users
-    var groupUserResponse = api.Users.GetAllUsers();
-    foreach (var user in groupUserResponse.Users)
+    // Récupération des utilisateurs de l'API Zendesk
+    var users = api.Users.GetAllUsers();
+
+    // Insertion des utilisateurs dans la table Users
+    foreach (var user in users.Users)
     {
-        string insertUserSql = "INSERT INTO Users (Id, Name, Email, Role) VALUES (@Id, @Name, @Email, @Role)";
+        string insertUserSql = @"
+        INSERT INTO Users (Id, Name, Email)
+        VALUES (@Id, @Name, @Email);";
 
         using (SqlCommand insertUserCommand = new SqlCommand(insertUserSql, connection))
         {
             insertUserCommand.Parameters.AddWithValue("@Id", user.Id);
-            insertUserCommand.Parameters.AddWithValue("@Name", user.Name ?? "n/a");
+            insertUserCommand.Parameters.AddWithValue("@Name", user.Name);
             insertUserCommand.Parameters.AddWithValue("@Email", user.Email);
-            insertUserCommand.Parameters.AddWithValue("@Role", user.Role ?? "n/a");
 
             insertUserCommand.ExecuteNonQuery();
         }
     }
 
-    // Récupération des tickets Zendesk et insertion dans la table Tickets
-    var tickets = api.Tickets.GetAllTickets();
-    foreach (var item in tickets.Tickets)
+    // Insertion des tags dans la table Tags
+    foreach (var ticket in tickets.Tickets)
     {
-        sqlStatement = "INSERT INTO Tickets (Id, Priority, Type, Subject, Status, Requester_Id, Assigned_Id, Created_at, Url, Markers) VALUES (@Id, @Priority, @Type, @Subject, @Status, @Requester, @Assigned, @Created_at, @Url, @Markers)";
-
-        using (SqlCommand command = new SqlCommand(sqlStatement, connection))
+        foreach (var tag in ticket.Tags)
         {
-            command.Parameters.AddWithValue("@Id", item.Id);
-            command.Parameters.AddWithValue("@Subject", item.Subject);
-            command.Parameters.AddWithValue("@Status", item.Status);
-            command.Parameters.AddWithValue("@Created_at", item.CreatedAt);
-            command.Parameters.AddWithValue("@Priority", item.Priority);
-            command.Parameters.AddWithValue("@Requester", item.RequesterId);
-            command.Parameters.AddWithValue("@Assigned", item.AssigneeId);
-            command.Parameters.AddWithValue("@Type", string.IsNullOrEmpty(item.Type) ? (object)DBNull.Value : item.Type);
-            command.Parameters.AddWithValue("@Url", item.Url);
+            string insertTagSql = @"
+            IF NOT EXISTS (SELECT * FROM Tags WHERE Name = @Name)
+            INSERT INTO Tags (Name)
+            VALUES (@Name);";
 
-            // Convertir la liste de tags en une chaîne séparée par des virgules
-            string markers = string.Join(" , ", item.Tags);
-            command.Parameters.AddWithValue("@Markers", markers);
+            using (SqlCommand insertTagCommand = new SqlCommand(insertTagSql, connection))
+            {
+                insertTagCommand.Parameters.AddWithValue("@Name", tag);
 
-            command.ExecuteNonQuery();
+                insertTagCommand.ExecuteNonQuery();
+            }
         }
-    } 
-    
+    }
+
+    // Insertion des relations ticket-tag dans la table TicketTags
+    foreach (var ticket in tickets.Tickets)
+    {
+        foreach (var tag in ticket.Tags)
+        {
+            string insertTicketTagSql = @"
+            INSERT INTO TicketTags (TicketId, TagId)
+            SELECT @TicketId, Id FROM Tags WHERE Name = @TagName;";
+
+            using (SqlCommand insertTicketTagCommand = new SqlCommand(insertTicketTagSql, connection))
+            {
+                insertTicketTagCommand.Parameters.AddWithValue("@TicketId", ticket.Id);
+                insertTicketTagCommand.Parameters.AddWithValue("@TagName", tag);
+
+                insertTicketTagCommand.ExecuteNonQuery();
+            }
+        }
+    }
+
+    connection.Close();
 }
 // Affichage des tickets actuels si l'utilisateur le souhaite
 Console.WriteLine("[1] Voulez-vous afficher les tickets actuels\n[Autre touche] Quitter");
