@@ -20,6 +20,8 @@ using System.Data.SqlClient;
 using System.Net;
 using ZendeskApi_v2;
 
+
+
 // Définition des chemins des fichiers de configuration
 string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
 string configFolderPath = Path.Combine(baseDirectory, "config");
